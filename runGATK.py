@@ -345,6 +345,12 @@ def call(args) :
                "het":args.heterozygosity[0], "java":args.java_options[0],
                "hmm":args.hmm_threads[0]}
 
+    # Check "" in the java options and remove them if necessary
+    if dc_args["java"][0] == '"' :
+        dc_args["java"] = dc_args["java"][1:]
+    if dc_args["java"][-1] == '"' :
+        dc_args["java"] = dc_args["java"][:-1]
+
     keep = args.keep_temp
 
     print("# runGATK.py call")
@@ -501,6 +507,12 @@ def genotype(args) :
 
     # Get other arguments
     dc_args = {"nproc":args.processes[0], "java":args.java_options[0]}
+
+    # Check "" in the java options and remove them if necessary
+    if dc_args["java"][0] == '"' :
+        dc_args["java"] = dc_args["java"][1:]
+    if dc_args["java"][-1] == '"' :
+        dc_args["java"] = dc_args["java"][:-1]
 
     keep = args.keep_temp
     not_all_sites = args.not_all
