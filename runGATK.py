@@ -715,6 +715,7 @@ def run_HC(job) :
     number = job[2]
     print("{}: Running HaplotypeCaller job number {}".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), number))
     logfile = open(job[1], "w")
+    logfile.write(cmd + "\n")
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=logfile)
     proc.communicate()
     logfile.close()
