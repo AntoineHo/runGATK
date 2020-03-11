@@ -483,7 +483,7 @@ def genotype(args) :
     all_samples = args.Samples[0]
 
     dc_samples = {}
-    for sample in all_samples.split(";") :
+    for sample in all_samples.split(",") :
 
         # Find sample and call directories
         if not os.path.isdir(sample) :
