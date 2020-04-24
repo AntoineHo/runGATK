@@ -345,7 +345,8 @@ def call(args) :
                "het":args.heterozygosity[0], "java":args.java_options[0],
                "hmm":args.hmm_threads[0], "mrpas":args.max_reads_per_alignment_start[0],
                "bamout":args.bam_out, "indel_het":args.indel_heterozygosity[0],
-               "fid":args.founders_id[0], "ERC":args.emit_ref_confidence[0]}
+               "fid":args.founder_id[0], "ERC":args.emit_ref_confidence[0],
+               "om":args.output_mode[0]}
 
     # Check "" in the java options and remove them if necessary
     if dc_args["java"][0] == '"' :
@@ -373,8 +374,8 @@ def call(args) :
 
     # 1. Make a queue of jobs to run in parallel
     # Create a list of jobs
-    cmd = "gatk HaplotypeCaller --java-options \"{java}\" -R {ref} -I {bam} -O {subout} -L {subinterval} --emit-ref-confidence {ERC} --pcr-indel-model {pcr} --heterozygosity {het} --indel-heterozygosity {indel_het} --max-reads-per-alignment-start {mrpas} --sample-name {sample} --native-pair-hmm-threads {hmm}"
-    dc_haplo = {"java":dc_args["java"], "pcr":dc_args["pcr"], "het":dc_args["het"], "hmm":dc_args["hmm"], "ERC":dc_args["ERC"],
+    cmd = "gatk HaplotypeCaller --java-options \"{java}\" -R {ref} -I {bam} -O {subout} -L {subinterval} --emit-ref-confidence {ERC} --output-mode {om} --pcr-indel-model {pcr} --heterozygosity {het} --indel-heterozygosity {indel_het} --max-reads-per-alignment-start {mrpas} --sample-name {sample} --native-pair-hmm-threads {hmm}"
+    dc_haplo = {"java":dc_args["java"], "pcr":dc_args["pcr"], "het":dc_args["het"], "hmm":dc_args["hmm"], "ERC":dc_args["ERC"], "om":dc_args["om"],
                 "indel_het":dc_args["indel_het"], "mrpas":dc_args["mrpas"], "fid":dc_args["fid"], "ref":ref, "bam":bam, "sample": sample_name,}
 
     # Add bamout to cmd if True
@@ -867,8 +868,9 @@ def main() :
     cal.add_argument('-ht','--hmm-threads',nargs=1,type=int,default=[4], required=False,help="<INT> Number of threads to use for HMM. Default: 4 (per process).")
     cal.add_argument('-mrpas','--max-reads-per-alignment-start',nargs=1,type=int,default=[50], required=False,help="<INT> See GATK doc. Default: 50. (Set to 0 to deactivate).")
     cal.add_argument('-ihe','--indel-heterozygosity',nargs=1,type=float,default=[0.0001], required=False,help="<FLOAT> Indel heterozygosity value to pass to HaplotypeCaller. Default: 0.0001")
-    cal.add_argument('-fi', '--founders-id',nargs=1,type=str,default=[''],help="<STRING> Founders ID. Default: \"\" (empty)")
+    cal.add_argument('-fi', '--founder-id',nargs=1,type=str,default=[''],help="<STRING> Founder population sample ID. Default: \"\" (empty)")
     cal.add_argument('-erc', '--emit-ref-confidence',nargs=1,type=str,default=['BP_RESOLUTION'],choices=['BP_RESOLUTION','GVCF'],help="<STRING> ERC (see HaplotypeCaller documentation). Default: \"BP_RESOLUTION\" (only alternative: \"GVCF\")")
+    cal.add_argument('-om', '--output-mode',nargs=1,type=str,default=['EMIT_ALL_ACTIVE_SITES'],choices=['EMIT_VARIANTS_ONLY','EMIT_ALL_CONFIDENT_SITES','EMIT_ALL_ACTIVE_SITES'],help="<STRING> Output mode (see HaplotypeCaller documentation). Default: \"EMIT_ALL_ACTIVE_SITES\"")
     cal.add_argument('-kp', '--keep-temp',type=str_to_bool, nargs='?', const=True, default=False, help="Do not remove intermediate steps files (cannot be before positional argument). Default: False.")
     cal.add_argument('-dr', '--dry-run',type=str_to_bool, nargs='?', const=True, default=False, help="Only parse arguments for testing and debugging commands. Default: False.")
     cal.add_argument('-bo','--bam-out',type=str_to_bool, nargs='?', const=True, default=False, help="<INT> Output realigned reads bam. Default: False (0)")
