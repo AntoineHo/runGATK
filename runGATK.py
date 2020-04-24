@@ -376,6 +376,15 @@ def call(args) :
     cmd = "gatk HaplotypeCaller --java-options \"{java}\" -R {ref} -I {bam} -O {subout} -L {subinterval} --emit-ref-confidence {ERC} --pcr-indel-model {pcr} --heterozygosity {het} --indel-heterozygosity {indel_het} --max-reads-per-alignment-start {mrpas} --sample-name {sample} --native-pair-hmm-threads {hmm}"
     dc_haplo = {"java":dc_args["java"], "pcr":dc_args["pcr"], "het":dc_args["het"], "hmm":dc_args["hmm"], "ERC":dc_args["ERC"],
                 "indel_het":dc_args["indel_het"], "mrpas":dc_args["mrpas"], "fid":dc_args["fid"], "ref":ref, "bam":bam, "sample": sample_name,}
+
+    # Add bamout to cmd if True
+    if dc_args["bamout"] :
+        cmd +=  " --bam-output {bamout}"
+
+    # Add founder id if available
+    if dc_args["fid"] != "" :
+        cmd +=  " --founder-id {fid}"
+
     jobs = []
     subfiles_out = []
     interval_files = []
@@ -387,12 +396,7 @@ def call(args) :
         # Add bamout to cmd if True
         if dc_args["bamout"] :
             subbam = os.path.join(out, "sub_" + str(n) + ".realigned.bam")
-            cmd +=  " --bam-output {bamout}"
             dc_haplo["bamout"] = subbam
-
-        # Add founder id if available
-        if dc_args["fid"] != "" :
-            cmd +=  " --founder-id {fid}"
 
         logfile = os.path.join(out, "sub_" + str(n) + ".log")
         # Write interval file
