@@ -387,12 +387,12 @@ def call(args) :
         # Add bamout to cmd if True
         if dc_args["bamout"] :
             subbam = os.path.join(out, "sub_" + str(n) + ".realigned.bam")
-            cmd +=  "--bam-output {bamout}"
+            cmd +=  " --bam-output {bamout}"
             dc_haplo["bamout"] = subbam
 
         # Add founder id if available
         if dc_args["fid"] != "" :
-            cmd +=  "--founder-id {fid}"
+            cmd +=  " --founder-id {fid}"
 
         logfile = os.path.join(out, "sub_" + str(n) + ".log")
         # Write interval file
