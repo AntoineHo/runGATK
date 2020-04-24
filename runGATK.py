@@ -374,7 +374,7 @@ def call(args) :
 
     # 1. Make a queue of jobs to run in parallel
     # Create a list of jobs
-    cmd = "gatk HaplotypeCaller --java-options \"{java}\" -R {ref} -I {bam} -O {subout} -L {subinterval} --bam-output {bamout} --emit-ref-confidence {ERC} --pcr-indel-model {pcr} --heterozygosity {het} --indel-heterozygosity {indel_het} --max-reads-per-alignment-start {mrpas} --sample-name {sample} --native-pair-hmm-threads {hmm} --founders-id {fid}"
+    cmd = "gatk HaplotypeCaller --java-options \"{java}\" -R {ref} -I {bam} -O {subout} -L {subinterval} --bam-output {bamout} --emit-ref-confidence {ERC} --pcr-indel-model {pcr} --heterozygosity {het} --indel-heterozygosity {indel_het} --max-reads-per-alignment-start {mrpas} --sample-name {sample} --native-pair-hmm-threads {hmm} --founder-id {fid}"
     dc_haplo = {"java":dc_args["java"], "pcr":dc_args["pcr"], "het":dc_args["het"], "hmm":dc_args["hmm"], "ERC":dc_args["ERC"],
                 "indel_het":dc_args["indel_het"], "bamout":dc_args["bamout"], "mrpas":dc_args["mrpas"], "fid":dc_args["fid"],
                 "ref":ref, "bam":bam, "sample": sample_name,}
@@ -853,10 +853,10 @@ def main() :
     cal.add_argument('-p','--processes',nargs=1,type=int,default=[4], required=False,help="<INT> Maximum processes in pool to use. Default: 4.")
     cal.add_argument('-ht','--hmm-threads',nargs=1,type=int,default=[4], required=False,help="<INT> Number of threads to use for HMM. Default: 4 (per process).")
     cal.add_argument('-mrpas','--max-reads-per-alignment-start',nargs=1,type=int,default=[50], required=False,help="<INT> See GATK doc. Default: 50. (Set to 0 to deactivate).")
-    cal.add_argument('-bo','--bam-out',nargs=1,type=str_to_bool, nargs='?', const=True, default=False, help="<INT> Output realigned reads bam. Default: False (0)")
+    cal.add_argument('-bo','--bam-out',type=str_to_bool, nargs='?', const=True, default=False, help="<INT> Output realigned reads bam. Default: False (0)")
     cal.add_argument('-ihe','--indel-heterozygosity',nargs=1,type=float,default=[0.0001], required=False,help="<FLOAT> Indel heterozygosity value to pass to HaplotypeCaller. Default: 0.0001")
     cal.add_argument('-fi', '--founders-id',nargs=1,type=str,default=[''],help="<STRING> Founders ID. Default: \"\" (empty)")
-    cal.add_argument('-erc', '--emit-rec-confidence',nargs=1,type=str,default=['BP_RESOLUTION'],default=['BP_RESOLUTION','GVCF'],help="<STRING> ERC (see HaplotypeCaller documentation). Default: \"BP_RESOLUTION\" (only alternative: \"GVCF\")")
+    cal.add_argument('-erc', '--emit-rec-confidence',nargs=1,type=str,default=['BP_RESOLUTION'],choices=['BP_RESOLUTION','GVCF'],help="<STRING> ERC (see HaplotypeCaller documentation). Default: \"BP_RESOLUTION\" (only alternative: \"GVCF\")")
     cal.add_argument('-kp', '--keep-temp',type=str_to_bool, nargs='?', const=True, default=False, help="Do not remove intermediate steps files (cannot be before positional argument). Default: False.")
     cal.add_argument('-dr', '--dry-run',type=str_to_bool, nargs='?', const=True, default=False, help="Only parse arguments for testing and debugging commands. Default: False.")
     cal.set_defaults(func=call)
