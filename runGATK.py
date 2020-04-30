@@ -528,7 +528,9 @@ def genotype(args) :
     out = os.path.abspath(out)
 
     # Get other arguments
-    dc_args = {"nproc":args.processes[0], "java":args.java_options[0]}
+    dc_args = {"nproc":args.processes[0], "java":args.java_options[0],
+               "het":args.heterozygosity[0], "indel_het":args.indel_heterozygosity[0]
+              }
 
     # Check "" in the java options and remove them if necessary
     if dc_args["java"][0] == '"' :
@@ -577,9 +579,11 @@ def genotype(args) :
     # Create a list of jobs
     merge_out1 = os.path.join(out, "merged_raw.vcf")
     merge_out2 = os.path.join(out, "merged_allsites.vcf")
-    cmd1 = "gatk GenotypeGVCFs --java-options \"{java}\" -R {ref} -O {subout1} -L {subinterval} -V {gvcf}" # RAW
-    cmd2 = "gatk GenotypeGVCFs --java-options \"{java}\" -R {ref} -O {subout2} -L {subinterval} -V {gvcf} --all-sites" # All sites
-    dc_gg = {"java":dc_args["java"], "ref":ref, "gvcf":combined_gvcf}
+    cmd1 = "gatk GenotypeGVCFs --java-options \"{java}\" -R {ref} -O {subout1} -L {subinterval} -V {gvcf} --heterozygosity {het} --indel-heterozygosity {indel_het}" # RAW
+    cmd2 = "gatk GenotypeGVCFs --java-options \"{java}\" -R {ref} -O {subout2} -L {subinterval} -V {gvcf} --heterozygosity {het} --indel-heterozygosity {indel_het} --all-sites" # All sites
+    dc_gg = {"java":dc_args["java"], "ref":ref, "gvcf":combined_gvcf,
+             "het":dc_args["het"], "indel_het":dc_args["indel_het"]
+             }
     jobs = []
     subfiles_out1 = []
     subfiles_out2 = []
@@ -710,12 +714,6 @@ def genotype(args) :
     p.close() # Required so that pool stops correctly and program does not hang
     p.terminate()
     sys.exit(0)
-
-
-
-
-
-
 
 
 
@@ -886,6 +884,9 @@ def main() :
     gen.add_argument('-na', '--not-all',type=str_to_bool, nargs='?', const=True, default=False, help="Do not use allsites option in GenotypeGVCFs (in addition to normal vcf output). Default: will output allsites vcf and normal vcf output.")
     gen.add_argument('-p','--processes',nargs=1,type=int,default=[4], required=False,help="<INT> Maximum threads to use. Default: 4.")
     gen.add_argument('-jo', '--java-options',nargs=1,type=str,default=['-Xmx4G'],help="<STRING> Java Virtual Machine options (Ram Per Process is defined here). Default: \"-Xmx4G\"")
+    gen.add_argument('-fi', '--founder-id',nargs=1,type=str,default=[''],help="<STRING> Founder population sample ID. Default: \"\" (empty)")
+    gen.add_argument('-he','--heterozygosity',nargs=1,type=float,default=[0.01], required=False,help="<FLOAT> Heterozygosity value to pass to HaplotypeCaller. Default: 0.01")
+    gen.add_argument('-ihe','--indel-heterozygosity',nargs=1,type=float,default=[0.0001], required=False,help="<FLOAT> Indel heterozygosity value to pass to HaplotypeCaller. Default: 0.0001")
     gen.set_defaults(func=genotype)
     #gen.add_argument('-w','--windows',nargs=1,type=int,default=[100000], required=False,help="<INT> Window size (in kb!!!) to split genome. Default: 100.")
 
