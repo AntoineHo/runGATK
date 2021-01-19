@@ -4,17 +4,19 @@ GATK variant calling pipeline using python
 - [Environment and installation](#install)
 - [Modules](#modules)
   - [Prepare module](#prepare)
+  - [Trim module](#trim)
   - [Align module](#align)
   - [Call module](#call)
   - [Genotype module](#genotype)
-- [Exemple usage](#exemple)
+- [Exemple usage: rungatk pipeline](#pipeline)
+- [Exemple usage: manual run](#exemple)
 
 ## <a name="install"></a> 1. Environment and installation
 
 ### 1.1 Install conda and bioconda
 See here: https://bioconda.github.io/user/install.html
-- `conda` is required to install `numpy` and `biopython`
-- `bioconda` is required to install `bwa`, `sambamba`, `samtools`, `gatk4`, `picard`
+- `conda` is required to install `numpy`, `biopython` and ``pyyaml`
+- `bioconda` is required to install `bwa`, `sambamba`, `samtools`, `gatk4`, `picard`, `fastp`
 Note: it is possible that in the future some of these requirements will drop (e.g.: `numpy`, `biopython`) and others will be added (e.g.:`fastp`)
 
 ### 1.2 Create environment & clone repository
@@ -39,7 +41,23 @@ optional arguments:
   -ws, --window-size  <INT> Window size (in kb) to split genome. Default: [100]
 ```
 
-### <a name="align"></a> 2.2 `align`
+### <a name="trim"></a> 2.2 `trim`
+This module trims PE reads libraries and removes adapters with `fastp`. In order it:
+1. Reads an input tab separated file with 2 columns (respectively path to R1.fq.gz and path to R2.fq.gz). The reads can be (un)compressed.
+2. Create `fastp` jobs and runs them in parallel
+
+```bash
+usage: runGATK.py trim [-h] [-t THREADS] [-p PROCESSES] [-fo FASTP_OPTIONS] Reads
+positional arguments:
+  Reads                <STRING> A file containing a list of filepaths to the reads to trim.
+optional arguments:
+  -h, --help           show this help message and exit
+  -t, --threads        <INT> Maximum threads for fastp process. Default: [4]
+  -p, --processes      <INT> Maximum parallel fastp processes in pool. Each process uses the number of threads defined by -t. Default: [4]
+  -fo, --fastp-options <STRING> fastp filtering options. Default: ['--detect_adapter_for_pe --trim_poly_g --compression 9']
+```
+
+### <a name="align"></a> 2.3 `align`
 This module creates a .bam file from the input reads. In order it:
 1. Aligns the reads library per library and lane by lane (with automatic read-groups naming) with `bwa mem`
 2. Filters bad quality alignment and converts SAM to BAM file with `sambamba view`
@@ -64,7 +82,7 @@ optional arguments:
   -kp, --keep-temp  Do not remove intermediate steps alignments (cannot be before positional argument). Default: False
 ```
 
-### <a name="call"></a> 2.3 `call`
+### <a name="call"></a> 2.4 `call`
 This module creates .g.vcf files from the sample bam files. In order it:
 1. Calls samples .bam files in parallel using intervals defined by the `prepare` module with `GATK HaplotypeCaller`
 2. Merge intervals .g.vcf into a single merged.g.vcf file per sample with `picard MergeVcfs`
@@ -92,7 +110,7 @@ optional arguments:
   -dr, --dry-run                          Only parse arguments for testing and debugging commands. Default: False
 ```
 
-### <a name="genotype"></a> 2.4 `genotype`
+### <a name="genotype"></a> 2.5 `genotype`
 This module creates a final .vcf file from the samples merged.g.vcf files. In order it:
 1. Imports .g.vcf files from all the samples to a database with `GATK GenomicsDBImport` <- best option
 1. (Alternatively) Combines .g.vcf into a single multi-sample .g.vcf with `GATK CombineGVCFs` <- much longer runtime
@@ -121,9 +139,87 @@ optional arguments:
   --use-combine                 Use CombineGVCFS instead of GenomicsDBImport
 ```
 
-## <a name="exemple"></a> 3. Exemple usage
+## <a name="pipeline"></a> 3. Exemple usage: rungatk pipeline
 
-### 3.1 Preparing reference
+The `pipeline` module creates a bash script file using a yaml formatted configuration file (see template below or download given file). This allows the user to simply input desired options and libraries, use the module and then run the bash script. This is done in one config file edition and 3 commands.
+
+### 4.1 Preparing a configuration file
+
+Exemple configuration file:
+```yaml
+# Dependencies must be in $PATH, use conda and bioconda for convenience
+rungatk: /path/to/runGATK.py
+reference: /path/to/reference.fasta
+# Output directory (relative path from the directory where rungatk pipeline is called)
+output_directory: output
+# Options for trimming input reads
+trim_options: # fastp trimming options
+  skip_trimming: false # set to true to skip trimming
+  njobs: 4 # Number of parallel trimming jobs (if num libraries < njobs then only num libraries in parallel)
+  threads_per_job: 4 # Number of threads used by one job (total threads used = njobs * threads_per_job)
+  fastp_options: '--detect_adapter_for_pe --trim_poly_g --compression 9'
+align_options: # bwa & sambamba options
+  threads: 20 # Alignement threads to use (one job at a time)
+  ram_per_thread: 4 # RAM per thread for sambamba 
+  mapq: 20 # minimum MAPQ to keep alignement (sambamba view)
+prepare_options: # Options for chunking the input reference
+  window_size: 50 # in Kbps
+call_options: # GATK HaplotypeCaller options (check GATK4 manual for more information)
+  njobs: 4 # Number of parallel HaplotypeCaller jobs
+  ht: 4
+  pim: 'NONE'
+  java_options: '-Xmx4G' # Java Virtual Machine options (you may want to increase RAM here)
+  he: 0.01 # heterozygosity
+  ihe: 0.001 # indel heterozygosity
+  mrpas: 50
+  fi: ''
+  erc: 'BP_RESOLUTION'
+  om: 'EMIT_ALL_ACTIVE_SITES'
+genotype_options: # GATK GenomicsDBImport and GenotypeGVCFs options (check GATK4 manual for more information)
+  njobs: 4 # Number of parallel genotyping jobs (if num contigs < njobs then only num contigs in parallel) 
+  sp: 4 # Sample in parallel for GenomicsDBImport
+  java_options: '-Xmx4G'
+  fi: ''
+  he: 0.01
+  ihe: 0.001
+  not_allsites: false # Set this to 'true' if you are only looking for variant sites and not reference homozygous sites
+samples:
+  D4A3: # SAMPLE NAME that will be in the final VCF column header (do not use spaces)
+    lib1: # PE library for sample D4A3. Note: the library name is not important for the pipeline (do not use spaces)
+      R1: /path/to/input/D4A3.library.HiSeq2500.lane1.R1.fastq.gz # FWD
+      R2: /path/to/input/D4A3.library.HiSeq2500.lane1.R2.fastq.gz # REVERSE
+    lib2:
+      R1: /path/to/input/D4A3.library.HiSeq2500.lane2.R1.fastq.gz
+      R2: /path/to/input/D4A3.library.HiSeq2500.lane2.R2.fastq.gz 
+  D5B3:
+    lib1: # Only one library used for D5B3
+      R1: /path/to/input/D5B3.lane1.R1.fastq.gz
+      R2: /path/to/input/D5B3.lane1.R2.fastq.gz
+```
+
+### 4.2 Running the pipeline
+
+```bash
+conda activate rungatk
+python runGATK.py pipeline config.yaml # The output directory is a relative path from the folder where this command launched
+```
+
+Move to the output directory where 2 files can be found :
+- `pipeline.sh`
+- `sample_reads.list`
+
+It is important that you run pipeline.sh in this directory
+```bash
+cd /path/to/output
+chmod +x pipeline.sh
+./pipeline.sh
+```
+
+The final VCF file(s) are: `/path/to/output/jointgenotyping/merged.*.vcf`
+
+## <a name="exemple"></a> 4. Exemple usage: manual run
+
+### 4.1 Preparing reference
 
 ```bash
 conda activate rungatk
@@ -140,7 +236,7 @@ cp $ref $wd/input # or ln -s $ref $wd/input # copy or symlink reference to the i
 python $rungatk prepare -ws 500 $ref # Run prepare module
 ```
 
-### 3.2 Aligning 2 libraries for 3 samples on the reference
+### 4.2 Aligning 2 libraries for 3 samples on the reference
 Note: reads pre-processing is not implemented (yet?) in the pipeline. I usually run `fastQC` and `fastp` before using the reads.
 
 ```bash
@@ -163,7 +259,7 @@ python $rungatk align $sample $ref $L1R1,$L2R1 $L1R2,$L2R2
 done
 ```
 
-### 3.3 Calling 3 samples
+### 4.3 Calling 3 samples
 ```bash
 conda activate rungatk
 
@@ -179,7 +275,7 @@ python $rungatk call -p $processes $sample $ref # Run HaplotypeCaller in on mult
 done
 ```
 
-### 3.4 Joint genotyping of 3 samples
+### 4.4 Joint genotyping of 3 samples
 ```bash
 conda activate rungatk
 
