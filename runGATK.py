@@ -10,7 +10,7 @@ import shutil
 import datetime
 from time import localtime, strftime
 import argparse
-#import binascii
+import yaml # REQUIRE pyyaml <- not in python package
 import gzip
 
 import subprocess
@@ -19,6 +19,233 @@ from multiprocessing import Pool, TimeoutError
 #import pandas as pd
 import numpy as np
 from Bio import SeqIO # Need BIOPYTHON SEQ/IO
+
+
+
+
+
+#     _____                         _                      _                  _   _
+#    / ____|                       | |                    (_)                | | (_)
+#   | |       _ __    ___    __ _  | |_    ___     _ __    _   _ __     ___  | |  _   _ __     ___
+#   | |      | '__|  / _ \  / _` | | __|  / _ \   | '_ \  | | | '_ \   / _ \ | | | | | '_ \   / _ \
+#   | |____  | |    |  __/ | (_| | | |_  |  __/   | |_) | | | | |_) | |  __/ | | | | | | | | |  __/
+#    \_____| |_|     \___|  \__,_|  \__|  \___|   | .__/  |_| | .__/   \___| |_| |_| |_| |_|  \___|
+#                                                 | |         | |
+#                                                 |_|         |_|
+
+def create_pipeline(args) :
+    """Pipeline to prepare reference genome files for variant calling"""
+
+    # Parse arguments & check files
+    config_file = args.config[0]
+
+    print("# runGATK.py pipeline")
+
+    # Read config file and create a .bash file
+    f = open(config_file, "r")
+    cfg = yaml.load(f, Loader=yaml.FullLoader)
+    f.close()
+
+    # Check output directory
+    if not os.path.isdir(cfg["output_directory"]) :
+        os.makedirs(cfg["output_directory"])
+    else :
+        raise Exception("ERROR: Output directory already exists!")
+
+    # Check runGATK, reference and input reads
+    if not os.path.isfile(cfg["rungatk"]) :
+        raise Exception("ERROR: cannot find runGATK.py!")
+    if not os.path.isfile(cfg["reference"]) :
+        raise Exception("ERROR: cannot find reference fasta file!")
+    for sample, libraries in cfg["samples"].items() :
+        for lib, reads in libraries.items() :
+            if not os.path.isfile(reads["R1"]) :
+                raise Exception("ERROR: cannot find reads file: {}".format(reads["R1"]))
+            if not os.path.isfile(reads["R2"]) :
+                raise Exception("ERROR: cannot find reads file: {}".format(reads["R2"]))
+
+    # Write pipeline
+    f = open(os.path.join(cfg["output_directory"], "pipeline.sh"), 'w')
+    f.write("#!/bin/bash\n\n# Global variables\nrungatk={}\nref={}\n\n".format(cfg["rungatk"], cfg["reference"]))
+
+    # Step preparing reference
+    f.write("\n## Preparing reference\n")
+    f.write("echo 'Preparing reference files:'\n")
+    f.write("python ${{rungatk}} prepare -ws {} ${{ref}}\n".format(cfg["prepare_options"]["window_size"]))
+
+    # Step Trimming
+    if cfg["trim_options"]["skip_trimming"] : # Skip trimmming
+        pass
+    else : # Do not skip trimmming
+        f.write("\n## Trimming reads\n")
+        f.write("echo 'Trimming:'\n")
+
+        # Create a reads file
+        readslist = os.path.join(os.path.abspath(cfg["output_directory"]), "sample_reads.list")
+        fr = open(readslist, "w")
+        for sample, libraries in cfg["samples"].items() : # for each library
+            for lib, reads in libraries.items() : # for reads in library
+                fr.write("{}\t{}\n".format(reads["R1"], reads["R2"]))
+        fr.close()
+
+        dc = {
+              "threads":cfg["trim_options"]["threads_per_job"],
+              "jobs":cfg["trim_options"]["njobs"],
+              "options":cfg["trim_options"]["fastp_options"],
+              "reads":readslist
+              }
+        f.write("python ${{rungatk}} trim -t {threads} -p {jobs} -fo \"{options}\" {reads}\n".format(**dc))
+
+    # Step aligning
+    f.write("\n## Aligning trimmed reads\n")
+    f.write("echo 'Aligning:'\n")
+
+    # Per sample alignment
+    trimreads = {sample:{"R1":[], "R2":[]} for sample in cfg["samples"].keys()}
+    # Store libraries with trimled.gz suffix
+    for sample, libraries in cfg["samples"].items() :
+        for lib, reads in libraries.items() :
+            trimreads[sample]["R1"].append(reads["R1"] + ".trimmed.gz")
+            trimreads[sample]["R2"].append(reads["R1"] + ".trimmed.gz")
+
+    for sample in cfg["samples"].keys() :
+        f.write("# Aligning {}\n".format(sample))
+
+        dc = {
+              "sample":sample,
+              "threads":cfg["align_options"]["threads"],
+              "ram":cfg["align_options"]["ram_per_thread"],
+              "mapq":cfg["align_options"]["mapq"],
+              "R1":",".join(r for r in trimreads[sample]["R1"]),
+              "R2":",".join(r for r in trimreads[sample]["R2"]),
+              }
+        f.write("python ${{rungatk}} align -t {threads} -r {ram} -m {mapq} {sample} ${{ref}} {R1} {R2}\n".format(**dc))
+
+    # Step calling samples
+    f.write("\n## Calling samples\n")
+    f.write("echo 'Calling:'\n")
+
+    for sample in cfg["samples"].keys() :
+        f.write("# Calling {}\n".format(sample))
+        fi = cfg["call_options"]["fi"] if cfg["call_options"]["fi"] != '' else "\'\'"
+        dc = {
+              "sample":sample,
+              "njobs":cfg["call_options"]["njobs"],
+              "ht":cfg["call_options"]["ht"],
+              "pim":cfg["call_options"]["pim"],
+              "he":cfg["call_options"]["he"],
+              "ihe":cfg["call_options"]["ihe"],
+              "mrpas":cfg["call_options"]["mrpas"],
+              "fi":fi,
+              "erc":cfg["call_options"]["erc"],
+              "om":cfg["call_options"]["om"],
+              "jo":cfg["call_options"]["java_options"],
+              }
+        f.write("python ${{rungatk}} call -jo \\\"{jo}\\\" -p {njobs} -ht {ht} -he {he} -ihe {ihe} -mrpas {mrpas} -erc {erc} -om {om} -fi {fi} {sample} ${{ref}}\n".format(**dc))
+
+    # Genotyping
+    f.write("\n## Joint-genotyping\n")
+    f.write("echo 'Genotyping:'\n")
+
+    fi = cfg["genotype_options"]["fi"] if cfg["genotype_options"]["fi"] != '' else "\'\'"
+    dc = {
+          "sample":sample,
+          "njobs":cfg["genotype_options"]["njobs"],
+          "sp":cfg["genotype_options"]["sp"],
+          "fi":fi,
+          "he":cfg["genotype_options"]["he"],
+          "ihe":cfg["genotype_options"]["ihe"],
+          "jo":cfg["genotype_options"]["java_options"],
+          "samples":",".join(sample for sample in cfg["samples"].keys())
+          }
+    if cfg["genotype_options"]["not_allsites"] : # only variants
+        f.write("python ${{rungatk}} genotype -jo \\\"{jo}\\\" -p {njobs} -he {he} -ihe {ihe} -fi {fi} --not-all ${{ref}} {samples} jointgenotyping\n".format(**dc))
+    else : # default : allsites and only variants
+        f.write("python ${{rungatk}} genotype -jo \\\"{jo}\\\" -p {njobs} -he {he} -ihe {ihe} -fi {fi} ${{ref}} {samples} jointgenotyping\n".format(**dc))
+
+    f.write("\necho \"Done!\"\n")
+    f.close()
+
+    print("Done!\nNote: Do 'chmod +x pipeline.sh' and launch it in its directory.\nFinal files will be stored in the \"jointegenotyping\" subdirectory.")
+
+    sys.exit(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#    _______          _
+#   |__   __|        (_)
+#      | |     _ __   _   _ __ ___
+#      | |    | '__| | | | '_ ` _ \
+#      | |    | |    | | | | | | | |
+#      |_|    |_|    |_| |_| |_| |_|
+#
+#
+
+def trim_reads(args) :
+    """Pipeline to prepare reference genome files for variant calling"""
+
+    # 0. parse arguments & check files
+    freads = check_files(args.Reads)[0]
+
+    dc_args = {"threads":args.threads[0], "nproc":args.processes[0],
+               "fo":args.fastp_options[0],
+              }
+
+    print("# runGATK.py trim")
+    print("Reads filepath list:\t{}\n".format(freads))
+    print("Other arguments:\t" + str(dc_args))
+    print("===============================================================================\n")
+
+    # Read file and create jobs
+    jobs = []
+    number = 0 # job number
+    f = open(freads, "r")
+    for line in f :
+        if len(line.strip()) == 0 :
+            continue
+        elif line[0] == "#" :
+            continue
+        dc = {k:v for k,v in dc_args.items()}
+        pairs = line.strip().split("\t")
+        if len(pairs) != 2 :
+            raise Exception("ERROR: Reads file appears unpaired!")
+
+        dc["R1"] = check_files([pairs[0]])[0]
+        dc["R2"] = check_files([pairs[1]])[0]
+        dc["O1"] = dc["R1"] + ".trimmed.gz"
+        dc["O2"] = dc["R2"] + ".trimmed.gz"
+
+        if os.path.isfile(dc["O1"]) and os.path.isfile(dc["O2"]) :
+            print("SKIP: Found trimmed file at {}".format(dc["O1"]))
+            continue
+        else :
+            cmd = "fastp -w {threads} -i {R1} -I {R2} -o {O1} -O {O2} {fo}"
+            cmd = cmd.format(**dc)
+            jobs.append((cmd, number))
+            number += 1
+    f.close()
+
+    # Run jobs in parallel
+    p = Pool(dc_args["nproc"])
+    p.map(run_FP, jobs)
+
+    p.close() # Required so that pool stops correctly and program does not hang
+    p.terminate()
+
+    sys.exit(0)
+
+
+
 
 
 
@@ -76,106 +303,127 @@ def align(args) :
     else :
         print("SKIP: bwa index file found: {}".format(indexed_ref))
 
-    # Loop through lanes
-    #print("Starting alignment...")
-    i = 0
-    bam_to_merge = []
+    # Preparing outputs and required variables
+    out_merge = os.path.join(out, dc_args["sample"] + ".merged.bam")
+    out_markdup = os.path.join(out, dc_args["sample"] + ".markdup.bam")
+    out_sort = os.path.join(out, dc_args["sample"] + ".sorted.CALL.bam")
     intermediate_files = []
-    for r1, r2 in zip(R1_reads, R2_reads) :
-        #print("Aligning paired: {} & {}".format(r1, r2))
-        # Get read group for alignment
-        header, id = get_read_group(r1)
-        readgroup = "@RG\\tID:{id}\\tSM:{sample}\\tLB:{id}_{sample}\\tPL:{sequencer}"
-        dc_rg = {"id":id, "sample":dc_args["sample"], "sequencer":"ILLUMINA"}
-        readgroup = readgroup.format(**dc_rg)
 
-        # Preparing outputs
-        out_bwa_sam = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".sam")
-        out_view = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".view.bam")
-        out_sort_first = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".sorted.bam")
+    if os.path.isfile(out_merge) or os.path.isfile(out_markdup) or os.path.isfile(out_sort) :
+        print("SKIP: found required .bam file!")
+        bam_to_merge = []
+        for r1, r2 in zip(R1_reads, R2_reads) :
+            out_sort_first = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".sorted.bam")
+            bam_to_merge.append(out_sort_first)
+    else :
+        # Loop through lanes
+        i = 0
+        bam_to_merge = []
+        for r1, r2 in zip(R1_reads, R2_reads) :
+            #print("Aligning paired: {} & {}".format(r1, r2))
+            # Get read group for alignment
+            header, id = get_read_group(r1)
+            readgroup = "@RG\\tID:{id}\\tSM:{sample}\\tLB:{id}_{sample}\\tPL:{sequencer}"
+            dc_rg = {"id":id, "sample":dc_args["sample"], "sequencer":"ILLUMINA"}
+            readgroup = readgroup.format(**dc_rg)
 
-        # 1. BWA mem command
-        dc_bwa = {"threads":dc_args["threads"], "readgroup":readgroup, "output":out_bwa_sam, "ref":ref, "r1":r1, "r2":r2}
-        cmd = "bwa mem -K 100000000 -t {threads} -R \"{readgroup}\" -o {output} {ref} {r1} {r2}"
-        cmd = cmd.format(**dc_bwa)
-        if not os.path.isfile(out_bwa_sam) :
-            print("\n{}: Aligning reads".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
+            # Preparing outputs
+            out_bwa_sam = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".sam")
+            out_view = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".view.bam")
+            out_sort_first = os.path.join(out, dc_args["sample"] + "_" + os.path.basename(r1) + "_" + os.path.basename(r1) + ".sorted.bam")
+
+            # 1. BWA mem command
+            dc_bwa = {"threads":dc_args["threads"], "readgroup":readgroup, "output":out_bwa_sam, "ref":ref, "r1":r1, "r2":r2}
+            cmd = "bwa mem -K 100000000 -t {threads} -R \"{readgroup}\" -o {output} {ref} {r1} {r2}"
+            cmd = cmd.format(**dc_bwa)
+            if not os.path.isfile(out_bwa_sam) :
+                print("\n{}: Aligning reads".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
+                print(cmd + "\n")
+                run(cmd)
+            else :
+                print("SKIP: alignement sam file found: {}".format(out_bwa_sam))
+            intermediate_files.append(out_bwa_sam)
+
+            # 2. Sambamba view command
+            dc_view = {"threads":dc_args["threads"], "mapq":dc_args["mapq"], "output":out_view, "input_sam":out_bwa_sam}
+            cmd = "sambamba view -h -S -f bam -l 7 -t {threads} -F \"mapping_quality >= {mapq}\" -o {output} {input_sam}"
+            cmd = cmd.format(**dc_view)
+            if not os.path.isfile(out_view) :
+                print("\n{}: Converting to BAM file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
+                print(cmd + "\n")
+                run(cmd)
+            else :
+                print("SKIP: bam file found: {}".format(out_view))
+            intermediate_files.append(out_view)
+            intermediate_files.append(out_view+".bai")
+
+            # 3. sort intermetdiate
+            dc_sort = {"threads":dc_args["threads"], "output":out_sort_first, "input":out_view}
+            cmd = "sambamba sort -l 7 -t {threads} -o {output} {input}"
+            cmd = cmd.format(**dc_sort)
+            if not os.path.isfile(out_sort_first) :
+                print("\n{}: Sorting bam file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
+                print(cmd + "\n")
+                run(cmd)
+            else :
+                print("SKIP: bam file found: {}".format(out_sort_first))
+            intermediate_files.append(out_sort_first)
+            intermediate_files.append(out_sort_first+".bai")
+            bam_to_merge.append(out_sort_first)
+
+    # Merging all alignments
+    if os.path.isfile(out_merge) or os.path.isfile(out_markdup) or os.path.isfile(out_sort) :
+        print("SKIP: found required .bam file!")
+    else :
+        if len(bam_to_merge) > 1 :
+            input_bams = " ".join(x for x in bam_to_merge)
+            dc_merge = {"threads":dc_args["threads"], "output":out_merge, "input_bams":input_bams}
+            cmd = "sambamba merge -l 7 -t {threads} {output} {input_bams}"
+            cmd = cmd.format(**dc_merge)
+            if not os.path.isfile(out_merge) :
+                print("\n{}: Merging alignments".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
+                print(cmd + "\n")
+                run(cmd)
+            else :
+                print("SKIP: merged bam file found: {}".format(out_merge))
+            intermediate_files.append(out_merge)
+            intermediate_files.append(out_merge+".bai")
+        else :
+            print("SKIP: Merging is not necessary, only one library!")
+            # In case only one sample change out_merge for the rest of the pipeline
+            out_merge = bam_to_merge[0]
+            intermediate_files.append(out_merge)
+            intermediate_files.append(out_merge+".bai")
+
+    # Marking duplicates
+    if os.path.isfile(out_markdup) or os.path.isfile(out_sort) :
+        print("SKIP: found required .bam file!")
+    else :
+        dc_markdup = {"threads":dc_args["threads"], "output":out_markdup, "input":out_merge}
+        cmd = "sambamba markdup --overflow-list-size 600000 --hash-table-size 500000 -l 7 -t {threads} {input} {output}"
+        cmd = cmd.format(**dc_markdup)
+        if not os.path.isfile(out_markdup) :
+            print("\n{}: Marking duplicates".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
             print(cmd + "\n")
             run(cmd)
         else :
-            print("SKIP: alignement sam file found: {}".format(out_bwa_sam))
-        intermediate_files.append(out_bwa_sam)
+            print("SKIP: markdup bam file found: {}".format(out_markdup))
+        intermediate_files.append(out_markdup)
+        intermediate_files.append(out_markdup+".bai")
 
-        # 2. Sambamba view command
-        dc_view = {"threads":dc_args["threads"], "mapq":dc_args["mapq"], "output":out_view, "input_sam":out_bwa_sam}
-        cmd = "sambamba view -h -S -f bam -l 7 -t {threads} -F \"mapping_quality >= {mapq}\" -o {output} {input_sam}"
-        cmd = cmd.format(**dc_view)
-        if not os.path.isfile(out_view) :
-            print("\n{}: Converting to BAM file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-            print(cmd + "\n")
-            run(cmd)
-        else :
-            print("SKIP: bam file found: {}".format(out_view))
-        intermediate_files.append(out_view)
-
-        # 3. sort intermetdiate
-        dc_sort = {"threads":dc_args["threads"], "output":out_sort_first, "input":out_view}
+    # Sorting final file
+    if os.path.isfile(out_sort) :
+        print("SKIP: found required .bam file!")
+    else :
+        dc_sort = {"threads":dc_args["threads"], "output":out_sort, "input":out_markdup}
         cmd = "sambamba sort -l 7 -t {threads} -o {output} {input}"
         cmd = cmd.format(**dc_sort)
-        if not os.path.isfile(out_sort_first) :
+        if not os.path.isfile(out_sort) :
             print("\n{}: Sorting bam file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
             print(cmd + "\n")
             run(cmd)
         else :
-            print("SKIP: bam file found: {}".format(out_sort_first))
-        intermediate_files.append(out_sort_first)
-        bam_to_merge.append(out_sort_first)
-
-    # Preparing outputs
-    out_merge = os.path.join(out, dc_args["sample"] + ".merged.bam")
-    out_markdup = os.path.join(out, dc_args["sample"] + ".markdup.bam")
-    out_sort = os.path.join(out, dc_args["sample"] + ".sorted.CALL.bam")
-
-    # Merging all alignments
-    if len(bam_to_merge) > 1 :
-        input_bams = " ".join(x for x in bam_to_merge)
-        dc_merge = {"threads":dc_args["threads"], "output":out_merge, "input_bams":input_bams}
-        cmd = "sambamba merge -l 7 -t {threads} {output} {input_bams}"
-        cmd = cmd.format(**dc_merge)
-        if not os.path.isfile(out_merge) :
-            print("\n{}: Merging alignments".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-            print(cmd + "\n")
-            run(cmd)
-        else :
-            print("SKIP: merged bam file found: {}".format(out_merge))
-        intermediate_files.append(out_merge)
-    else :
-        print("SKIP: Merging is not necessary, only one sample!")
-        # In case only one sample change out_merge for the rest of the pipeline
-        out_merge = bam_to_merge[0]
-
-    # Marking duplicates
-    dc_markdup = {"threads":dc_args["threads"], "output":out_markdup, "input":out_merge}
-    cmd = "sambamba markdup --overflow-list-size 600000 --hash-table-size 500000 -l 7 -t {threads} {input} {output}"
-    cmd = cmd.format(**dc_markdup)
-    if not os.path.isfile(out_markdup) :
-        print("\n{}: Marking duplicates".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-        print(cmd + "\n")
-        run(cmd)
-    else :
-        print("SKIP: markdup bam file found: {}".format(out_markdup))
-    intermediate_files.append(out_markdup)
-
-    # Sorting final file
-    dc_sort = {"threads":dc_args["threads"], "output":out_sort, "input":out_markdup}
-    cmd = "sambamba sort -l 7 -t {threads} -o {output} {input}"
-    cmd = cmd.format(**dc_sort)
-    if not os.path.isfile(out_sort) :
-        print("\n{}: Sorting bam file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-        print(cmd + "\n")
-        run(cmd)
-    else :
-        print("SKIP: final file found: {}".format(out_sort))
+            print("SKIP: final file found: {}".format(out_sort))
 
     # Indexing final file
     dc_index = {"threads":dc_args["threads"], "input":out_sort}
@@ -346,11 +594,13 @@ def call(args) :
     sample_dir = os.path.abspath(sample_dir)
 
     sample_files = os.listdir(sample_dir)
+    bam = None
     for file in sample_files :
+        print(file)
         if file.find(".sorted.CALL.bam") != -1 and file.find(".bai") == -1 :
             bam = os.path.abspath(os.path.join(sample_dir, file))
-        else :
-            raise Exception("ERROR: Could not find alignment file: {}!".format(file))
+    if bam == None :
+        raise Exception("ERROR: Could not find alignment file: {}!".format(file))
     bam = check_files([bam])[0]
 
     # Get other arguments
@@ -834,7 +1084,7 @@ def VQSR(args) :
 
     keep = args.keep_temp
 
-    print("# runGATK.py call")
+    print("# runGATK.py vqsr")
     print("Reference genome:\t{}\n".format(ref))
     print("Reference dictionary:\t{}\n".format(refdict))
     print("Output stored in:\t{}\n".format(out))
@@ -906,7 +1156,7 @@ def AlleleCount(args) :
     if dc_args["java"][-1] == '"' :
         dc_args["java"] = dc_args["java"][:-1]
 
-    print("# runGATK.py call")
+    print("# runGATK.py pileup")
     print("Reference genome:\t{}\n".format(ref))
     print("Reference dictionary:\t{}\n".format(os.path.splitext(ref)[0] + ".dict"))
     print("Alignment:\t{}\n".format(bam))
@@ -1034,6 +1284,15 @@ def run(cmd) :
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
     proc.communicate()
 
+def run_FP(job) :
+    cmd = job[0]
+    number = job[1]
+    print("{}: Running FastP job".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), number))
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc.communicate()
+    print("{}: Finished FastP job".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), number))
+
+
 def run_GG(job) :
     cmd = job[0]
     number = job[2]
@@ -1149,6 +1408,11 @@ def main() :
     parser = argparse.ArgumentParser(description='Runs modules of a variant calling pipeline with bwa-mem and GATK.')
     subparsers = parser.add_subparsers(required=True, dest="align || prepare || call || genotype || vqsr || allelecount")
 
+    # Trim Illumina short reads with fastp
+    pipeline = subparsers.add_parser('pipeline', help="Create a pipeline bash file to run variant calling")
+    pipeline.add_argument('config',nargs=1,type=str,help="<STRING> A YAML file containing the samples, reads and options.")
+    pipeline.set_defaults(func=create_pipeline)
+
     # Align reads to the reference
     aln = subparsers.add_parser('align', help="Aligns reads from ONE sample on a reference genome\nReads are considered Illumina Paired-End\nReads list correspond to lanes and must be given in the same order or the alignment will fail")
     aln.add_argument('Sample',nargs=1,type=str,default=['sample1'],help="<STRING> sample name for output and adding to read group. Default: 'sample1'")
@@ -1171,6 +1435,14 @@ def main() :
     prep.add_argument('Reference',nargs=1,type=str,help="<STRING> A fasta file containing the reference genome.")
     prep.add_argument('-ws','--window-size',nargs=1,type=int,default=[100], required=False,help="<INT> Window size (in kb!!!) to split genome. Default: %(default)s")
     prep.set_defaults(func=prepare_genome)
+
+    # Trim Illumina short reads with fastp
+    trim = subparsers.add_parser('trim', help="Trim input sequencing reads with fastp")
+    trim.add_argument('Reads',nargs=1,type=str,help="<STRING> A file containing a list of filepaths to the reads to trim.")
+    trim.add_argument('-t','--threads',nargs=1,type=int,default=[4], required=False,help="<INT> Maximum threads for fastp process. Default: %(default)s")
+    trim.add_argument('-p','--processes',nargs=1,type=int,default=[4], required=False,help="<INT> Maximum parallel fastp processes in pool. Each process uses the number of threads defined by -t. Default: %(default)s")
+    trim.add_argument('-fo','--fastp-options',nargs=1,type=str,default=['--detect_adapter_for_pe --trim_poly_g --compression 9'],help="<STRING> fastp filtering options. Default: %(default)s")
+    trim.set_defaults(func=trim_reads)
 
     # Parallel HaplotypeCaller
     cal = subparsers.add_parser('call', help="Runs GATK HaplotypeCaller with a sample and the prepared reference genome assembly.")
