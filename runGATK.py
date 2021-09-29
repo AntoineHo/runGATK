@@ -609,7 +609,7 @@ def call(args) :
                "hmm":args.hmm_threads[0], "mrpas":args.max_reads_per_alignment_start[0],
                "bamout":args.bam_out, "indel_het":args.indel_heterozygosity[0],
                "fid":args.founder_id[0], "ERC":args.emit_ref_confidence[0],
-               "om":args.output_mode[0]}
+               "om":args.output_mode[0], "pjo":args.picard_java_options[0]}
 
     # Check "" in the java options and remove them if necessary
     if dc_args["java"][0] == '"' :
@@ -701,7 +701,7 @@ def call(args) :
         f.close()
 
         # Making and running merge command
-        dc_merge = {"java":dc_args["java"], "listfile":list_file, "dict":refdict, "out":merge_out}
+        dc_merge = {"java":dc_args["pjo"], "listfile":list_file, "dict":refdict, "out":merge_out}
         cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
         cmd = cmd.format(**dc_merge)
         print(cmd + "\n")
@@ -1450,6 +1450,7 @@ def main() :
     cal.add_argument('Reference',nargs=1,type=str,help="<STRING> A path to the reference genome fasta file")
     cal.add_argument('-pim', '--pcr-indel-model',nargs=1,type=str,default=['NONE'],choices=["NONE","CONSERVATIVE","HOSTILE","AGGRESSIVE"],help="<STRING> Argument to pass to HaplotypeCaller --pcr-indel-model. Default: %(default)s")
     cal.add_argument('-jo', '--java-options',nargs=1,type=str,default=['-Xmx4G'],help="<STRING> Java Virtual Machine options (Ram Per Process is defined here). Default: %(default)s")
+    cal.add_argument('-pjo', '--picard-java-options',nargs=1,type=str,default=['-Xmx4G'],help="<STRING> Java Virtual Machine options. Default: %(default)s")
     cal.add_argument('-he','--heterozygosity',nargs=1,type=float,default=[0.01], required=False,help="<FLOAT> Heterozygosity value to pass to HaplotypeCaller. Default: %(default)s")
     cal.add_argument('-p','--processes',nargs=1,type=int,default=[4], required=False,help="<INT> Maximum processes in pool to use. Default: %(default)s")
     cal.add_argument('-ht','--hmm-threads',nargs=1,type=int,default=[4], required=False,help="<INT> Number of threads to use for HMM. Default: %(default)s (per process).")
