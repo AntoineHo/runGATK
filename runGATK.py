@@ -891,12 +891,13 @@ def genotype(args) :
     interval_files = []
     for n, line in enumerate(open(chromosomes_intervals, "r")) :
         chrom_name = line.strip().split("\t")[0]
+        #chrom_name = "".join(c for c in chrom_name if c not in "|#@.-") # remove special chars
         # Set filepaths
-        subinterval = os.path.join(out, "sub_" + str(chrom_name) + ".bed")
-        subout1 = os.path.join(out, "sub_" + str(chrom_name) + ".raw.vcf")
-        subout2 = os.path.join(out, "sub_" + str(chrom_name) + ".allsites.vcf")
-        logfile1 = os.path.join(out, "sub_" + str(chrom_name) + ".raw.log")
-        logfile2 = os.path.join(out, "sub_" + str(chrom_name) + ".allsites.log")
+        subinterval = os.path.join(out, "sub_" + str(n) + ".bed")
+        subout1 = os.path.join(out, "sub_" + str(n) + ".raw.vcf")
+        subout2 = os.path.join(out, "sub_" + str(n) + ".allsites.vcf")
+        logfile1 = os.path.join(out, "sub_" + str(n) + ".raw.log")
+        logfile2 = os.path.join(out, "sub_" + str(n) + ".allsites.log")
 
         # Write interval file
         f = open(subinterval, "w")
