@@ -21,9 +21,6 @@ import numpy as np
 from Bio import SeqIO # Need BIOPYTHON SEQ/IO
 
 
-
-
-
 #     _____                         _                      _                  _   _
 #    / ____|                       | |                    (_)                | | (_)
 #   | |       _ __    ___    __ _  | |_    ___     _ __    _   _ __     ___  | |  _   _ __     ___
@@ -919,22 +916,25 @@ def genotype(args) :
             print("SKIP: .vcf file already found: {}".format(subout1))
 
         # If .vcf of subfile does not exist and final file does not exist
-        if not os.path.isfile(subout2) and not os.path.isfile(merge_out2):
-            job2 = cmd2.format(**dc_gg)
-            jobs.append([job2, logfile2, n, True])
-        #elif os.path.isfile(merge_out2) : # in case final file found
-        #    continue
-        else : # in case subfile found
-            print("SKIP: .vcf file already found: {}".format(subout2))
+        if not not_all_sites :
+            if not os.path.isfile(subout2) and not os.path.isfile(merge_out2):
+                job2 = cmd2.format(**dc_gg)
+                jobs.append([job2, logfile2, n, True]) # all sites only if tag not-all is NOT True
+            #elif os.path.isfile(merge_out2) : # in case final file found
+            #    continue
+            else : # in case subfile found
+                print("SKIP: .vcf file already found: {}".format(subout2))
 
         # Print if final file is found in dir
         if os.path.isfile(merge_out1) :
             print("SKIP: Final raw .vcf file was found in directory!")
-        if os.path.isfile(merge_out2) :
-            print("SKIP: Final all sites .vcf file was found in directory!")
-
         subfiles_out1.append(subout1) # For later merging & removing
-        subfiles_out2.append(subout2) # For later merging & removing
+
+        if not not_all_sites :
+            if os.path.isfile(merge_out2) :
+                print("SKIP: Final all sites .vcf file was found in directory!")
+            subfiles_out2.append(subout2) # For later merging & removing
+
         interval_files.append(subinterval) # For later removing
 
     print("\n{}: Created {} jobs for GATK4 GenotypeGVCFs!".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), len(jobs)))
