@@ -792,7 +792,7 @@ def genotype(args) :
     dc_args = {"nproc":args.processes[0], "java":args.java_options[0],
                "het":args.heterozygosity[0], "indel_het":args.indel_heterozygosity[0],
                "use_combine":args.use_combine, "batch_size":args.batch_size[0],
-               "sproc":args.sample_processes[0],
+               "sproc":args.sample_processes[0], "pjo":args.picard_java_options[0],
               }
 
     # Check "" in the java options and remove them if necessary
@@ -952,7 +952,7 @@ def genotype(args) :
         f.close()
 
         # Making and running merge command
-        dc_merge = {"java":dc_args["java"], "listfile":list_file, "dict":refdict, "out":merge_out1}
+        dc_merge = {"java":dc_args["pjo"], "listfile":list_file, "dict":refdict, "out":merge_out1}
         cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
         cmd = cmd.format(**dc_merge)
         print(cmd + "\n")
@@ -975,7 +975,7 @@ def genotype(args) :
             f.close()
 
             # Making and running merge command
-            dc_merge = {"java":dc_args["java"], "listfile":list_file, "dict":refdict, "out":merge_out2}
+            dc_merge = {"java":dc_args["pjo"], "listfile":list_file, "dict":refdict, "out":merge_out2}
             cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
             cmd = cmd.format(**dc_merge)
             print(cmd + "\n")
@@ -1488,6 +1488,7 @@ def main() :
     gen.add_argument('-sp','--sample-processes',        nargs=1,type=int,    default=[4],        required=False, help="<INT> Maximum threads to read samples simultaneously (GenomicsDBImport only). Default: %(default)s")
     gen.add_argument('-bs','--batch-size',              nargs=1,type=int,    default=[50],       required=False, help="<INT> Default batch size for GenomicsDBImport. Default: %(default)s")
     gen.add_argument('-jo', '--java-options',           nargs=1,type=str,    default=['-Xmx4G'], help="<STRING> Java Virtual Machine options (Ram Per Process is defined here). Default: %(default)s")
+    gen.add_argument('-pjo', '--picard-java-options',   nargs=1,type=str,    default=['-Xmx4G'], help="<STRING> Java Virtual Machine options for picard commands. Default: %(default)s")
     gen.add_argument('-fi', '--founder-id',             nargs=1,type=str,    default=[''],       help="<STRING> Founder population sample ID. Default: \"\" (empty)")
     gen.add_argument('-he','--heterozygosity',          nargs=1,type=float,  default=[0.01],     required=False, help="<FLOAT> Heterozygosity value to pass to HaplotypeCaller. Default: %(default)s")
     gen.add_argument('-ihe','--indel-heterozygosity',   nargs=1,type=float,  default=[0.0001],   required=False, help="<FLOAT> Indel heterozygosity value to pass to HaplotypeCaller. Default: %(default)s")
