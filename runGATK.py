@@ -793,6 +793,7 @@ def genotype(args) :
                "het":args.heterozygosity[0], "indel_het":args.indel_heterozygosity[0],
                "use_combine":args.use_combine, "batch_size":args.batch_size[0],
                "sproc":args.sample_processes[0], "pjo":args.picard_java_options[0],
+               "pcn":args.picard_chunk_number[0],
               }
 
     # Check "" in the java options and remove them if necessary
@@ -944,19 +945,40 @@ def genotype(args) :
     # 2. Gather all raw .VCFs files back to one main raw .VCF file
     if len(subfiles_out1) != 1 and not os.path.isfile(merge_out1):
         print("\n{}: Merging GenotypeGVCFs (raw) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-        # Write g.vcf file list to "all_g_vcf.list" file
-        list_file = os.path.join(out, "raw_vcf.list")
-        f = open(list_file, "w")
-        for file in subfiles_out1 :
-            f.write(file + "\n")
-        f.close()
 
-        # Making and running merge command
-        dc_merge = {"java":dc_args["pjo"], "listfile":list_file, "dict":refdict, "out":merge_out1}
+        merge_file_list = open(os.path.join(out, "chunks.list"))
+
+        subfiles_to_merge = [f for f in subfiles_out1]
+        chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
+        merged_chunks = []
+
+        for i, chunk in enumerate(chunks_to_merge) :
+            # Write g.vcf file list to "all_g_vcf.list" file
+            chunk_list = os.path.join(out, "chunk_{}.list".format(i))
+            merged_chunk = os.path.join(out, "chunk_{}.merged".format(i))
+            merge_file_list.write(merged_chunk + "\n")
+            f = open(chunk_list, "w")
+            for file in chunk :
+                f.write(file + "\n")
+            f.close()
+
+            # NOTE: I SHOULD PARALLELIZE JOB RUNNING HERE!
+            # Making and running merge command
+            dc_merge = {"java":dc_args["pjo"], "listfile":chunk_list, "dict":refdict, "out":merged_chunk}
+            cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
+            cmd = cmd.format(**dc_merge)
+            print(cmd + "\n")
+            run(cmd)
+
+        merge_file_list.close()
+
+        # Merging the chunks : picard merge command
+        dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_list, "dict":refdict, "out":merge_out1}
         cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
         cmd = cmd.format(**dc_merge)
         print(cmd + "\n")
         run(cmd)
+
     elif len(subfiles_out1) == 1 and not os.path.isfile(merge_out1) :
         print("SKIP: No merging required (raw)! Copying output file...")
         shutil.copyfile(subfiles_out1[0], merge_out1)
@@ -967,19 +989,41 @@ def genotype(args) :
     if not not_all_sites : # In case all sites is required
         if len(subfiles_out2) != 1 and not os.path.isfile(merge_out2):
             print("\n{}: Merging GenotypeGVCFs (allsites) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
-            # Write g.vcf file list to "all_g_vcf.list" file
-            list_file = os.path.join(out, "allsites_vcf.list")
-            f = open(list_file, "w")
-            for file in subfiles_out2 :
-                f.write(file + "\n")
-            f.close()
 
-            # Making and running merge command
-            dc_merge = {"java":dc_args["pjo"], "listfile":list_file, "dict":refdict, "out":merge_out2}
+            merge_file_list = open(os.path.join(out, "chunks.list"))
+
+            subfiles_to_merge = [f for f in subfiles_out2]
+            chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
+            merged_chunks = []
+
+            for i, chunk in enumerate(chunks_to_merge) :
+                # Write g.vcf file list to "all_g_vcf.list" file
+                chunk_list = os.path.join(out, "chunk_{}.allsites.list".format(i))
+                merged_chunk = os.path.join(out, "chunk_{}.allsites.merged".format(i))
+                merge_file_list.write(merged_chunk + "\n")
+                f = open(chunk_list, "w")
+                for file in chunk :
+                    f.write(file + "\n")
+                f.close()
+
+
+                # SHOULD PARALLELIZE HERE
+                # Making and running merge command
+                dc_merge = {"java":dc_args["pjo"], "listfile":chunk_list, "dict":refdict, "out":merged_chunk}
+                cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
+                cmd = cmd.format(**dc_merge)
+                print(cmd + "\n")
+                run(cmd)
+
+            merge_file_list.close()
+
+            # Making and running merge command for all chunks
+            dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_list, "dict":refdict, "out":merge_out2}
             cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
             cmd = cmd.format(**dc_merge)
             print(cmd + "\n")
             run(cmd)
+
         elif len(subfiles_out2) == 1 and not os.path.isfile(merge_out2) :
             print("SKIP: No merging required (allsites)! Copying output file...")
             shutil.copyfile(subfiles_out2[0], merge_out2)
@@ -1257,6 +1301,12 @@ def AlleleCount(args) :
 #
 #
 
+def chunks(l, n):
+    """Yield n number of sequential chunks from l."""
+    d, r = divmod(len(l), n)
+    for i in range(n):
+        si = (d+1)*(i if i < r else r) + d*(0 if i < r else i - r)
+        yield l[si:si+(d+1 if i < r else d)]
 
 def read_dict(dict_file) :
     chromosomes = {}
@@ -1487,6 +1537,7 @@ def main() :
     gen.add_argument('-p','--processes',                nargs=1,type=int,    default=[4],        required=False, help="<INT> Maximum threads to use. Default: %(default)s")
     gen.add_argument('-sp','--sample-processes',        nargs=1,type=int,    default=[4],        required=False, help="<INT> Maximum threads to read samples simultaneously (GenomicsDBImport only). Default: %(default)s")
     gen.add_argument('-bs','--batch-size',              nargs=1,type=int,    default=[50],       required=False, help="<INT> Default batch size for GenomicsDBImport. Default: %(default)s")
+    gen.add_argument('-pcn','--picard-chunk-number',    nargs=1,type=int,    default=[50],       required=False, help="<INT> Number of chunks to merge separatelywith picard MergeVcfs (Higher number reduces total RAM usage). Default: %(default)s")
     gen.add_argument('-jo', '--java-options',           nargs=1,type=str,    default=['-Xmx4G'], help="<STRING> Java Virtual Machine options (Ram Per Process is defined here). Default: %(default)s")
     gen.add_argument('-pjo', '--picard-java-options',   nargs=1,type=str,    default=['-Xmx4G'], help="<STRING> Java Virtual Machine options for picard commands. Default: %(default)s")
     gen.add_argument('-fi', '--founder-id',             nargs=1,type=str,    default=[''],       help="<STRING> Founder population sample ID. Default: \"\" (empty)")
