@@ -946,7 +946,7 @@ def genotype(args) :
     if len(subfiles_out1) != 1 and not os.path.isfile(merge_out1):
         print("\n{}: Merging GenotypeGVCFs (raw) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
 
-        merge_file_list = open(os.path.join(out, "chunks.list"))
+        merge_file_list = open(os.path.join(out, "chunks.list"), "w")
 
         subfiles_to_merge = [f for f in subfiles_out1]
         chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
@@ -990,7 +990,7 @@ def genotype(args) :
         if len(subfiles_out2) != 1 and not os.path.isfile(merge_out2):
             print("\n{}: Merging GenotypeGVCFs (allsites) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
 
-            merge_file_list = open(os.path.join(out, "chunks.list"))
+            merge_file_list = open(os.path.join(out, "chunks.list"), "w")
 
             subfiles_to_merge = [f for f in subfiles_out2]
             chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
