@@ -955,7 +955,7 @@ def genotype(args) :
         for i, chunk in enumerate(chunks_to_merge) :
             # Write g.vcf file list to "all_g_vcf.list" file
             chunk_list = os.path.join(out, "chunk_{}.list".format(i))
-            merged_chunk = os.path.join(out, "chunk_{}.merged".format(i))
+            merged_chunk = os.path.join(out, "chunk_{}.merged.vcf".format(i))
             merge_file_list.write(merged_chunk + "\n")
             f = open(chunk_list, "w")
             for file in chunk :
@@ -999,7 +999,7 @@ def genotype(args) :
             for i, chunk in enumerate(chunks_to_merge) :
                 # Write g.vcf file list to "all_g_vcf.list" file
                 chunk_list = os.path.join(out, "chunk_{}.allsites.list".format(i))
-                merged_chunk = os.path.join(out, "chunk_{}.allsites.merged".format(i))
+                merged_chunk = os.path.join(out, "chunk_{}.allsites.merged.vcf".format(i))
                 merge_file_list.write(merged_chunk + "\n")
                 f = open(chunk_list, "w")
                 for file in chunk :
