@@ -946,7 +946,8 @@ def genotype(args) :
     if len(subfiles_out1) != 1 and not os.path.isfile(merge_out1):
         print("\n{}: Merging GenotypeGVCFs (raw) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
 
-        merge_file_list = open(os.path.join(out, "chunks.list"), "w")
+        merge_file_name = os.path.join(out, "chunks.list")
+        merge_file_list = open(merge_file_name, "w")
 
         subfiles_to_merge = [f for f in subfiles_out1]
         chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
@@ -973,7 +974,7 @@ def genotype(args) :
         merge_file_list.close()
 
         # Merging the chunks : picard merge command
-        dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_list, "dict":refdict, "out":merge_out1}
+        dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_name, "dict":refdict, "out":merge_out1}
         cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
         cmd = cmd.format(**dc_merge)
         print(cmd + "\n")
@@ -990,7 +991,8 @@ def genotype(args) :
         if len(subfiles_out2) != 1 and not os.path.isfile(merge_out2):
             print("\n{}: Merging GenotypeGVCFs (allsites) subfiles results!".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
 
-            merge_file_list = open(os.path.join(out, "chunks.list"), "w")
+            merge_file_name = os.path.join(out, "chunks.list")
+            merge_file_list = open(merge_file_name, "w")
 
             subfiles_to_merge = [f for f in subfiles_out2]
             chunks_to_merge = chunks(subfiles_to_merge, dc_args["pcn"])
@@ -1018,7 +1020,7 @@ def genotype(args) :
             merge_file_list.close()
 
             # Making and running merge command for all chunks
-            dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_list, "dict":refdict, "out":merge_out2}
+            dc_merge = {"java":dc_args["pjo"], "listfile":merge_file_name, "dict":refdict, "out":merge_out2}
             cmd = "picard MergeVcfs {java} I={listfile} D={dict} O={out}"
             cmd = cmd.format(**dc_merge)
             print(cmd + "\n")
