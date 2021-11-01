@@ -215,11 +215,13 @@ def check_args(dc_args) :
         log("WARNING: Max merge number must be >= 2: setting to 2")
         dc_args["chunk_size"] = 2
 
+    """ # Probably useless
     for s in ["java", "pjo"] :
         # Check "" in the java options and remove them if necessary
         if dc_args[s][0] == '"' :
             dc_args[s] = dc_args[s][1:]
         if dc_args[s][-1] == '"' :
             dc_args[s] = dc_args[s][:-1]
+    """
 
     return dc_args
