@@ -76,7 +76,7 @@ def create_pipeline(args) :
               "options":cfg["trim_options"]["fastp_options"],
               "reads":readslist
               }
-        f.write("python ${{rungatk}} trim -t {threads} -p {jobs} -fo \"{options}\" {reads}\n".format(**dc))
+        f.write("python ${{rungatk}} trim -t {threads} -p {jobs} -fo=\"{options}\" {reads}\n".format(**dc))
 
     # Step aligning
     f.write("\n## Aligning trimmed reads\n")
@@ -131,7 +131,7 @@ def create_pipeline(args) :
               "pjo":cfg["call_options"]["picard_java_options"],
               "mmn":cfg["call_options"]["mmn"],
         }
-        cmd = "python ${{rungatk}} call {sample} ${{ref}} -pjo \\\"{pjo}\\\" -jo \\\"{jo}\\\" "
+        cmd = "python ${{rungatk}} call {sample} ${{ref}} -pjo=\"{pjo}\" -jo=\"{jo}\" "
         cmd += "-p {njobs} -ht {ht} -he {he} -ihe {ihe} -mrpas {mrpas} -erc {erc} "
         cmd += "-om {om} -fi {fi} -mmn {mmn}"
         if cfg["call_options"]["bam_output"] == "true" :
@@ -163,7 +163,7 @@ def create_pipeline(args) :
     }
 
     cmd = "python ${{rungatk}} genotype ${{ref}} {samples} jointgenotyping "
-    cmd += "-jo \\\"{jo}\\\" -pjo \\\"{pjo}\\\" -p {njobs} "
+    cmd += "-jo=\"{jo}\" -pjo=\"{pjo}\" -p {njobs} "
     cmd += "-he {he} -ihe {ihe} -fi {fi} -mmn {mmn} -bs {bs}"
 
     if cfg["genotype_options"]["all_sites"] == "true" :
