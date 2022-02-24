@@ -15,13 +15,12 @@ GATK variant calling pipeline using python
 
 ### 1.1 Install conda and bioconda
 See here: https://bioconda.github.io/user/install.html
-- `conda` is required to install `numpy`, `biopython` and ``pyyaml`
-- `bioconda` is required to install `bwa`, `sambamba`, `samtools`, `gatk4`, `picard`, `fastp`
-Note: it is possible that in the future some of these requirements will drop (e.g.: `numpy`, `biopython`) and others will be added (e.g.:`fastp`)
+- `conda` is required to install `numpy`, and `pyyaml`
+- `bioconda` is required to install `bwa`, `sambamba`, `gatk4`, `picard`, `fastp`
 
 ### 1.2 Create environment & clone repository
 ```bash
-conda create -n rungatk biopython numpy bwa sambamba samtools picard gatk4
+conda/mamba create -n rungatk numpy pyyaml bwa sambamba gatk4 picard fastp
 conda activate rungatk
 cd $workdir # Folder of your project
 git clone https://github.com/AntoineHo/runGATK.git
