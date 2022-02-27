@@ -18,7 +18,7 @@ def align_reads(args) :
     ref = check_files(args.Reference)[0]
     out = args.Sample[0]
 
-    dc_args = {"threads":args.threads[0], "ram":args.ram[0], "mapq":args.mapq[0], "sample":args.Sample[0]} # Dict to make commands
+    dc_args = {"threads":args.threads[0], "ram":args.ram[0], "mapq":args.mapq[0], "sample":args.Sample[0], "output_logs":args.log} # Dict to make commands
     keep = args.keep_temp
 
     print("# runGATK.py align")
@@ -91,14 +91,14 @@ def align_reads(args) :
             if out_bwa_sam_exists :
                 log("SKIP: found .sam file.")
             else :
-                bwa_align_reads(ref, r1, r2, out_bwa_sam, readgroup, dc_args["threads"])
+                bwa_align_reads(ref, r1, r2, out_bwa_sam, readgroup, dc_args["threads"], dc_args["output_logs"])
                 intermediate_files.append(out_bwa_sam)
 
             # 3.5. make a sambamba view command: filtering on mapq
             if out_view_exists :
                 log("SKIP: found filtered .bam file.")
             else :
-                filter_mapq_bam(out_bwa_sam, out_view, dc_args["threads"], dc_args["mapq"])
+                filter_mapq_bam(out_bwa_sam, out_view, dc_args["threads"], dc_args["mapq"], dc_args["output_logs"])
                 intermediate_files.append(out_view)
                 intermediate_files.append(out_view+".bai")
 
@@ -106,7 +106,7 @@ def align_reads(args) :
             if out_sort_first_exists :
                 log("SKIP: found sorted .bam file.")
             else :
-                sort_bam(out_view, out_sort_first, dc_args["threads"])
+                sort_bam(out_view, out_sort_first, dc_args["threads"], dc_args["output_logs"])
                 intermediate_files.append(out_sort_first)
                 intermediate_files.append(out_sort_first+".bai")
 
@@ -118,7 +118,7 @@ def align_reads(args) :
     if out_markdup_exists or out_sort_exists :
         log("SKIP: found merged .bam file.")
     else :
-        merge_bam_list(bam_to_merge, out_merge, dc_args["threads"])
+        merge_bam_list(bam_to_merge, out_merge, dc_args["threads"], dc_args["output_logs"])
         intermediate_files.append(out_merge)
         intermediate_files.append(out_merge+".bai")
 
@@ -126,15 +126,15 @@ def align_reads(args) :
     if out_sort_exists :
         log("SKIP: found sorted .bam file.")
     else :
-        markdup_bam(out_merge, out_markdup, dc_args["threads"])
+        markdup_bam(out_merge, out_markdup, dc_args["threads"], dc_args["output_logs"])
         intermediate_files.append(out_markdup)
         intermediate_files.append(out_markdup+".bai")
 
     # 6. Sorting the markedup-merged-filtered final file
-    sort_bam(out_markdup, out_sort, dc_args["threads"])
+    sort_bam(out_markdup, out_sort, dc_args["threads"], dc_args["output_logs"])
 
     # 7. Indexing final file (may be useless, not sure because sambamba sort might already index)
-    index_bam(out_sort, dc_args["threads"])
+    index_bam(out_sort, dc_args["threads"], dc_args["output_logs"])
 
     # IF REMOVE TEMP : remove sam file, filtered bam file, merged file, marked file
     # Keep only filtered, merged, marked and sorted final file
@@ -147,8 +147,7 @@ def align_reads(args) :
 
 
 # Functions
-
-def bwa_align_reads(ref, r1, r2, output, readgroup, threads) :
+def bwa_align_reads(ref, r1, r2, output, readgroup, threads, output_logs) :
     """Align a library with BWA-MEM"""
     if os.path.isfile(output) :
         log("SKIP: found alignement: {}.".format(output))
@@ -158,9 +157,10 @@ def bwa_align_reads(ref, r1, r2, output, readgroup, threads) :
         cmd = cmd.format(**dc_bwa)
         log("Aligning reads.")
         print(cmd + "\n")
-        run(cmd)
+        log_file = output + ".log" if output_logs else None
+        run_log(cmd, log_file)
 
-def filter_mapq_bam(bamin, bamout, threads, mapq) :
+def filter_mapq_bam(bamin, bamout, threads, mapq, output_logs) :
     """Filter a bam file"""
     if os.path.isfile(bamout) :
         log("SKIP: found bam file: {}.".format(bamout))
@@ -170,9 +170,11 @@ def filter_mapq_bam(bamin, bamout, threads, mapq) :
         cmd = cmd.format(**dc_view)
         log("Converting to BAM file.")
         print(cmd + "\n")
-        run(cmd)
+        #run(cmd)
+        log_file = bamout + ".log" if output_logs else None
+        run_log(cmd, log_file)
 
-def merge_bam_list(bamlist, bamout, threads) :
+def merge_bam_list(bamlist, bamout, threads, output_logs) :
     """Merge a list of .bam files"""
     if os.path.isfile(bamout) :
         log("SKIP: found merged .bam file.")
@@ -185,13 +187,15 @@ def merge_bam_list(bamlist, bamout, threads) :
             cmd = cmd.format(**dc_merge)
             log("Merging alignments.")
             print(cmd + "\n")
-            run(cmd)
+            log_file = bamout + ".log" if output_logs else None
+            run_log(cmd, log_file)
+            #run(cmd)
         else :
             log("SKIP: Merging is not necessary.")
             # In case only one sample change rename file
             os.rename(bamlist[0], bamout)
 
-def sort_bam(bamin, bamout, threads) :
+def sort_bam(bamin, bamout, threads, output_logs) :
     """Sort a .bam files"""
     if os.path.isfile(bamout) :
         log("SKIP: found sorted .bam file.")
@@ -201,9 +205,11 @@ def sort_bam(bamin, bamout, threads) :
         cmd = cmd.format(**dc_sort)
         log("Sorting bam file.")
         print(cmd + "\n")
-        run(cmd)
+        log_file = bamout + ".log" if output_logs else None
+        run_log(cmd, log_file)
+        #run(cmd)
 
-def markdup_bam(bamin, bamout, threads) :
+def markdup_bam(bamin, bamout, threads, output_logs) :
     """Mark duplicates in a .bam file"""
     if os.path.isfile(bamout) :
         log("SKIP: found marked duplicates .bam file.")
@@ -213,4 +219,6 @@ def markdup_bam(bamin, bamout, threads) :
         cmd = cmd.format(**dc_markdup)
         log("Marking duplicates.")
         print(cmd + "\n")
-        run(cmd)
+        log_file = bamout + ".log" if output_logs else None
+        run_log(cmd, log_file)
+        #run(cmd)

@@ -76,6 +76,7 @@ def main() :
     aln.add_argument('-t','--threads',nargs=1, type=int, default=[4],  required=False,help="<INT> Maximum threads to use. Default: %(default)s")
     aln.add_argument('-r','--ram',    nargs=1, type=int, default=[4],  required=False,help="<INT> Number of GB of RAM per thread to use. Default: %(default)s")
     aln.add_argument('-m','--mapq',   nargs=1, type=int, default=[20], required=False,help="<INT> Sambamba view filtering to keep only alignements with MAPQ >= <INT>. Default: %(default)s")
+    aln.add_argument('-l','--log',             action="store_true",    help="Output log files of aligner steps, useful for debugging. Default: %(default)s")
     aln.add_argument('-kp', '--keep-temp',     action="store_true",    help="Do not remove intermediate steps alignments (cannot be before positional argument). Default: %(default)s")
     aln.set_defaults(func=align)
 
@@ -92,6 +93,7 @@ def main() :
     trm.add_argument('-t','--threads',        nargs=1, type=int, default=[4], required=False, help="<INT> Maximum threads for fastp process. Default: %(default)s")
     trm.add_argument('-p','--processes',      nargs=1, type=int, default=[4], required=False, help="<INT> Maximum parallel fastp processes in pool. Each process uses the number of threads defined by -t. Default: %(default)s")
     trm.add_argument('-fo','--fastp-options', nargs=1, type=str, default=['--detect_adapter_for_pe --trim_poly_g --compression 9'], help="<STRING> fastp filtering options. Default: %(default)s")
+    trm.add_argument('-nr','--no-report',     action="store_true",    help="Redirect fastp reports to /dev/null. Default: %(default)s")
     trm.set_defaults(func=trim)
 
     # Parallel HaplotypeCaller

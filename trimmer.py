@@ -15,7 +15,7 @@ def trim_reads(args) :
     freads = check_files(args.FOFN)[0]
 
     dc_args = {"threads":args.threads[0], "nproc":args.processes[0],
-               "fo":args.fastp_options[0],
+               "fo":args.fastp_options[0], "no_report":args.no_report,
               }
 
     print("# runGATK.py trim")
@@ -42,11 +42,18 @@ def trim_reads(args) :
         dc["O1"] = dc["R1"] + ".trimmed.gz"
         dc["O2"] = dc["R2"] + ".trimmed.gz"
 
+        if dc_args["no_report"] : # skip fastp report files
+            dc["json"] = "/dev/null"
+            dc["html"] = "/dev/null"
+        else :
+            dc["json"] = dc["O1"] + ".fastp_report_R1_R2.json" # default
+            dc["html"] = dc["O1"] + ".fastp_report_R1_R2.html"
+
         if os.path.isfile(dc["O1"]) and os.path.isfile(dc["O2"]) :
             log("SKIP: found trimmed file: {}.".format(dc["O1"]))
             continue
         else :
-            cmd = "fastp -w {threads} -i {R1} -I {R2} -o {O1} -O {O2} {fo}"
+            cmd = "fastp --json {json} --html {html} -w {threads} -i {R1} -I {R2} -o {O1} -O {O2} {fo}"
             cmd = cmd.format(**dc)
             jobs.append((cmd, number))
             number += 1
