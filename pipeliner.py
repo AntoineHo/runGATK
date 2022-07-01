@@ -88,7 +88,7 @@ def create_pipeline(args) :
     for sample, libraries in cfg["samples"].items() :
         for lib, reads in libraries.items() :
             trimreads[sample]["R1"].append(reads["R1"] + ".trimmed.gz")
-            trimreads[sample]["R2"].append(reads["R1"] + ".trimmed.gz")
+            trimreads[sample]["R2"].append(reads["R2"] + ".trimmed.gz")
 
     for sample in cfg["samples"].keys() :
         f.write("# Aligning {}\n".format(sample))
