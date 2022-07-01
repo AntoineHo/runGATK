@@ -3,7 +3,7 @@
 
 import os
 
-from runners import run
+from runners import run, run_log
 from utils import log, check_files, get_read_group, index_bam
 
 # Pipeline
