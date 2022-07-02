@@ -176,7 +176,7 @@ def read_dict(dict_file) :
             continue
     return chromosomes
 
-def index_bam(bam, threads) :
+def index_bam(bam, threads, output_logs) :
     """Index a .bam file"""
 
     import subprocess
@@ -193,7 +193,14 @@ def index_bam(bam, threads) :
         cmd = cmd.format(**dc_index)
         print("\n{}: Indexing final bam file".format(strftime("%Y-%m-%d %H:%M:%S", localtime())))
         print(cmd + "\n")
-        run(cmd)
+        log_file = bamidx + ".log" if output_logs else None
+        if not log_file :
+            run(cmd, ERR="devnull")
+        else :
+            lf = open(log_file, "w")
+            lf.write(cmd + "\n")
+            run(cmd, OUT=lf, ERR=lf)
+            lf.close()
     else :
         print("SKIP: bam index file found: {}".format(bamidx))
 
