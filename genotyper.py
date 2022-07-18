@@ -151,12 +151,12 @@ def genomics_db_import(gvcfs, ref, refdict, outdir, database, sample_map, **kwar
 
     # Prepare the command and run it
     cmd = "gatk GenomicsDBImport --java-options \"{dbjo}\" -R {ref} -L {intervals} --sample-name-map {sample_map} --genomicsdb-workspace-path {database} --batch-size {batch_size} --max-num-intervals-to-import-in-parallel {sproc}"
-    dc_combine = {"java":kwargs["dbjo"], "ref":ref, "sample_map":sample_map,
-                  "database":database, "batch_size":kwargs["batch_size"],
-                  "intervals":intervals, "sproc":kwargs["sproc"]}
+    dc_combine = {"dbjo":dbjo, "ref":ref, "sample_map":sample_map,
+                  "database":database, "batch_size":batch_size],
+                  "intervals":intervals, "sproc":sproc}
     cmd = cmd.format(**dc_combine)
     print(cmd + "\n")
-    if kwargs["output_logs"] :
+    if output_logs :
         log_file = os.path.join(outdir, "GenomicsDBImport.log")
         f = open(log_file, "w")
         run(cmd, ERR=f)
@@ -176,8 +176,8 @@ def genotype_gvcfs(ref, database, chr_intervals, out, all=False, **kwargs) :
         cmd += " --all-sites" # All sites
 
     dc_gg = {
-        "ref":ref, "input": "gendb://" + database, "java":kwargs["java"],
-        "het":kwargs["het"], "indel_het":kwargs["indel_het"],
+        "ref":ref, "input": "gendb://" + database, "java":java],
+        "het":het, "indel_het":indel_het,
     }
 
     jobs = []
@@ -198,7 +198,7 @@ def genotype_gvcfs(ref, database, chr_intervals, out, all=False, **kwargs) :
             dc_gg["sub"] = os.path.join(out, "sub_" + str(n) + ".raw.vcf")
             dc_gg["log"] = os.path.join(out, "sub_" + str(n) + ".raw.log")
 
-        if not kwargs["output_logs"] :
+        if not output_logs :
             dc_gg["log"] = False
 
         if not os.path.isfile(dc_gg["sub"]) :
@@ -211,7 +211,7 @@ def genotype_gvcfs(ref, database, chr_intervals, out, all=False, **kwargs) :
     if len(jobs) > 0 :
         log("Created {} jobs for GATK4 GenotypeGVCFs.".format(len(jobs)))
 
-        p = Pool(kwargs["nproc"])
+        p = Pool(nproc)
         p.map(run_GG, jobs)
         p.close() # Required so that pool stops correctly and program does not hang
         p.terminate()
