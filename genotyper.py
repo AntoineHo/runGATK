@@ -152,7 +152,7 @@ def genomics_db_import(gvcfs, ref, refdict, outdir, database, sample_map, **kwar
     # Prepare the command and run it
     cmd = "gatk GenomicsDBImport --java-options \"{dbjo}\" -R {ref} -L {intervals} --sample-name-map {sample_map} --genomicsdb-workspace-path {database} --batch-size {batch_size} --max-num-intervals-to-import-in-parallel {sproc}"
     dc_combine = {"dbjo":dbjo, "ref":ref, "sample_map":sample_map,
-                  "database":database, "batch_size":batch_size],
+                  "database":database, "batch_size":batch_size,
                   "intervals":intervals, "sproc":sproc}
     cmd = cmd.format(**dc_combine)
     print(cmd + "\n")
