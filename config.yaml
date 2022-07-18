@@ -25,10 +25,10 @@ call_options: # GATK HaplotypeCaller options (check GATK4 manual for more inform
   picard_java_options: '-Xmx4G' # Java Virtual Machine options (you may want to increase RAM here)
   he: 0.01 # heterozygosity
   ihe: 0.001 # indel heterozygosity
-  mrpas: 50 # founder_id see GATK documentation
+  mrpas: 50 # see GATK documentation
   fi: '' # founder_id see GATK documentation
-  erc: 'BP_RESOLUTION' # founder_id see GATK documentation
-  om: 'EMIT_ALL_ACTIVE_SITES' # founder_id see GATK documentation
+  erc: 'BP_RESOLUTION' # see GATK documentation
+  om: 'EMIT_ALL_ACTIVE_SITES' # see GATK documentation
   bam_output: false # output bam realigned files
   keep_temp: false # keep temporary files
   log: false # output logs containing GATK commands stdout/stderr
@@ -38,7 +38,8 @@ genotype_options: # GATK GenomicsDBImport and GenotypeGVCFs options (check GATK4
   mmn: 500 # max number of files to merge
   bs: 50 # batch size for GATK GenomicsDBImport
   java_options: '-Xmx4G' # Java Virtual Machine options (you may want to increase RAM here)
-  picard_java_options: '-Xmx4G' # Java Virtual Machine options (you may want to increase RAM here)
+  picard_java_options: '-Xmx4G' # Java Virtual Machine options for PicardTools (you may want to increase RAM here)
+  db_java_options: '-Xmx12G' # Java Virtual Machine options for GenomicsDBImport (you may want to increase RAM here if the GenomicsDBImport step fails with OOM error)
   fi: '' # founder_id see GATK documentation
   he: 0.01 # heterozygosity
   ihe: 0.001 # indel heterozygosity
@@ -46,14 +47,14 @@ genotype_options: # GATK GenomicsDBImport and GenotypeGVCFs options (check GATK4
   keep_temp: false #
   log: false #
 samples:
-  D4A3: # SAMPLE NAME that will be in the final VCF column header (do not use spaces)
-    lib1: # PE library for sample D4A3. Note: the library name is not important for the pipeline (do not use spaces)
-      R1: /path/to/input/D4A3.library.HiSeq2500.lane1.R1.fastq.gz # FWD
-      R2: /path/to/input/D4A3.library.HiSeq2500.lane1.R2.fastq.gz # REVERSE
+  sample_name_A: # SAMPLE NAME that will be in the final VCF column header (do not use spaces)
+    lib1: # PE library for sample A. Note: the library name is not important for the pipeline (do not use spaces)
+      R1: /path/to/input/sample_A.HiSeq2500.lane1.R1.fastq.gz # FWD
+      R2: /path/to/input/sample_A.HiSeq2500.lane1.R2.fastq.gz # REVERSE
     lib2:
-      R1: /path/to/input/D4A3.library.HiSeq2500.lane2.R1.fastq.gz
-      R2: /path/to/input/D4A3.library.HiSeq2500.lane2.R2.fastq.gz
-  D5B3:
-    lib1: # Only one library used for D5B3
+      R1: /path/to/input/sample_A.HiSeq2500.lane2.R1.fastq.gz
+      R2: /path/to/input/sample_A.HiSeq2500.lane2.R2.fastq.gz
+  sample_B_name:
+    lib1: # Only one library used for sample B
       R1: /path/to/input/D5B3.lane1.R1.fastq.gz
       R2: /path/to/input/D5B3.lane1.R2.fastq.gz

@@ -157,13 +157,14 @@ def create_pipeline(args) :
           "ihe":cfg["genotype_options"]["ihe"],
           "jo":cfg["genotype_options"]["java_options"],
           "pjo":cfg["genotype_options"]["picard_java_options"],
+          "dbjo":cfg["genotype_options"]["db_java_options"],
           "mmn":cfg["genotype_options"]["mmn"],
           "bs":cfg["genotype_options"]["bs"],
           "samples":",".join(sample for sample in cfg["samples"].keys())
     }
 
     cmd = "python ${{rungatk}} genotype ${{ref}} {samples} jointgenotyping "
-    cmd += "-jo=\"{jo}\" -pjo=\"{pjo}\" -p {njobs} "
+    cmd += "-jo=\"{jo}\" -pjo=\"{pjo}\" -dbjo=\"{dbjo}\" -p {njobs} "
     cmd += "-he {he} -ihe {ihe} -fi {fi} -mmn {mmn} -bs {bs}"
 
     if cfg["genotype_options"]["all_sites"] == "true" :
