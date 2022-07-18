@@ -176,7 +176,7 @@ def genotype_gvcfs(ref, database, chr_intervals, out, all=False, **kwargs) :
         cmd += " --all-sites" # All sites
 
     dc_gg = {
-        "ref":ref, "input": "gendb://" + database, "java":java],
+        "ref":ref, "input": "gendb://" + database, "java":java,
         "het":het, "indel_het":indel_het,
     }
 
