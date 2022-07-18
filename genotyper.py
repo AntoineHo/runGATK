@@ -40,7 +40,7 @@ def genotype_samples(args) :
         "het":args.heterozygosity[0], "indel_het":args.indel_heterozygosity[0],
         "batch_size":args.batch_size[0], "sproc":args.sample_processes[0],
         "chunk_size":args.max_merge_number[0], "output_logs":args.log,
-        "pjo":args.picard_java_options[0],
+        "pjo":args.picard_java_options[0], "dbjo":args.db_java_options[0],
     }
     dc_args = check_args(dc_args)
 
@@ -150,8 +150,8 @@ def genomics_db_import(gvcfs, ref, refdict, outdir, database, sample_map, **kwar
     f.close()
 
     # Prepare the command and run it
-    cmd = "gatk GenomicsDBImport --java-options \"{java}\" -R {ref} -L {intervals} --sample-name-map {sample_map} --genomicsdb-workspace-path {database} --batch-size {batch_size} --max-num-intervals-to-import-in-parallel {sproc}"
-    dc_combine = {"java":kwargs["java"], "ref":ref, "sample_map":sample_map,
+    cmd = "gatk GenomicsDBImport --java-options \"{dbjo}\" -R {ref} -L {intervals} --sample-name-map {sample_map} --genomicsdb-workspace-path {database} --batch-size {batch_size} --max-num-intervals-to-import-in-parallel {sproc}"
+    dc_combine = {"java":kwargs["dbjo"], "ref":ref, "sample_map":sample_map,
                   "database":database, "batch_size":kwargs["batch_size"],
                   "intervals":intervals, "sproc":kwargs["sproc"]}
     cmd = cmd.format(**dc_combine)
